@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:logger/logger.dart';
+import 'services/config_service.dart';
 import 'services/kimi_service.dart';
 import 'services/hive_service.dart';
 import 'providers/restaurant_provider.dart';
@@ -14,13 +15,16 @@ void main() async {
   final logger = Logger();
   
   try {
+    // 初始化配置
+    logger.i('正在加载配置...');
+    await ConfigService.initialize();
+    
     // 初始化Hive数据库
     logger.i('正在初始化Hive数据库...');
     await HiveService.init();
     
     // 初始化Kimi AI服务
-    // 注意：在实际使用时，请将API密钥存储在环境变量或安全配置中
-    const apiKey = 'sk-MOQFmKaWIuu1qVx5kre0zm8bf0qcliSc2gBmxVgOpOS4yqWJ'; // TODO: 替换为实际的API密钥
+    final apiKey = ConfigService.kimiApiKey;
     KimiService.initialize(apiKey: apiKey);
     
     logger.i('App initialization completed');

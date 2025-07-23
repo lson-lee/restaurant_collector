@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(dart:*)",
-      "Bash(flutter pub run:*)"
+      "Bash(flutter pub run:*)",
+      "Bash(git add:*)"
     ],
     "deny": []
   }
