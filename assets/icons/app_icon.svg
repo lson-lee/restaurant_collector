@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B35;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8E53;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow">
+      <feDropShadow dx="4" dy="4" stdDeviation="4" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  
+  <!-- 背景圆形 -->
+  <circle cx="256" cy="256" r="240" fill="url(#grad1)" filter="url(#shadow)"/>
+  
+  <!-- 餐厅图标主体 -->
+  <g transform="translate(256, 256)" fill="white">
+    <!-- 餐厅建筑 -->
+    <path d="M-80 -120 L-80 -40 L-60 -40 L-60 -80 L-20 -80 L-20 -40 L0 -40 L0 -80 L40 -80 L40 -40 L60 -40 L60 -120 L-80 -120 Z" />
+    
+    <!-- 屋顶 -->
+    <path d="M-100 -120 L0 -160 L100 -120 L-100 -120 Z" fill="#FFF8F0" opacity="0.9"/>
+    
+    <!-- 门 -->
+    <rect x="-15" y="-60" width="30" height="40" fill="#8B4513" rx="2"/>
+    
+    <!-- 窗户 -->
+    <rect x="-65" y="-100" width="20" height="20" fill="#87CEEB" rx="2"/>
+    <rect x="45" y="-100" width="20" height="20" fill="#87CEEB" rx="2"/>
+    
+    <!-- 刀叉图标 -->
+    <g transform="translate(0, 40)">
+      <!-- 叉子 -->
+      <path d="M-30 -20 L-30 40 L-25 40 L-25 -20 L-30 -20 Z" fill="#FFF8F0"/>
+      <path d="M-35 -20 L-35 40 L-30 40 L-30 -20 L-35 -20 Z" fill="#FFF8F0"/>
+      <path d="M-40 -20 L-40 40 L-35 40 L-35 -20 L-40 -20 Z" fill="#FFF8F0"/>
+      
+      <!-- 刀子 -->
+      <path d="M25 -20 L25 20 L30 25 L30 40 L35 40 L35 25 L40 20 L40 -20 L25 -20 Z" fill="#FFF8F0"/>
+    </g>
+    
+    <!-- 星星装饰 -->
+    <g transform="translate(0, -180)" opacity="0.8">
+      <path d="M0,-10 L2.9,-3.1 L10,-3.1 L4.7,1.2 L6.9,8.1 L0,4.1 L-6.9,8.1 L-4.7,1.2 L-10,-3.1 L-2.9,-3.1 Z" fill="#FFD700"/>
+    </g>
+  </g>
+</svg>

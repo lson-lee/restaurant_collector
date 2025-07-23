@@ -1,0 +1,500 @@
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
+import 'package:logger/logger.dart';
+import '../models/restaurant.dart';
+
+/// 数据库服务类 - 处理SQLite数据库操作
+class DatabaseService {
+  static final Logger _logger = Logger();
+  static Database? _database;
+  static const String _databaseName = 'restaurant_collector.db';
+  static const int _databaseVersion = 3;
+
+  /// 获取数据库实例
+  static Future<Database> get database async {
+    _database ??= await _initDatabase();
+    return _database!;
+  }
+
+  /// 初始化数据库
+  static Future<Database> _initDatabase() async {
+    try {
+      final databasePath = await getDatabasesPath();
+      final path = join(databasePath, _databaseName);
+      
+      _logger.i('Initializing database at: $path');
+      
+      return await openDatabase(
+        path,
+        version: _databaseVersion,
+        onCreate: _createTables,
+        onUpgrade: _upgradeDatabase,
+      );
+    } catch (e) {
+      _logger.e('Failed to initialize database: $e');
+      rethrow;
+    }
+  }
+
+  /// 创建数据库表
+  static Future<void> _createTables(Database db, int version) async {
+    try {
+      _logger.d('Creating database tables...');
+      
+      // 餐厅信息表
+      await db.execute('''
+        CREATE TABLE restaurants (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          address TEXT,
+          phone TEXT,
+          cuisine TEXT,
+          price_range TEXT,
+          rating REAL,
+          description TEXT,
+          source_url TEXT,
+          recommended_dishes TEXT,
+          business_hours TEXT,
+          images TEXT,
+          latitude TEXT,
+          longitude TEXT,
+          full_address TEXT,
+          created_at INTEGER,
+          updated_at INTEGER,
+          features TEXT,
+          environment TEXT,
+          service_highlights TEXT,
+          user_review_keywords TEXT,
+          marketing_points TEXT,
+          parking_info TEXT,
+          special_offers TEXT
+        )
+      ''');
+
+      // 体验记录表
+      await db.execute('''
+        CREATE TABLE experience_records (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          restaurant_id INTEGER,
+          rating INTEGER,
+          content TEXT,
+          visit_date INTEGER,
+          spend_amount REAL,
+          companion_count INTEGER,
+          tags TEXT,
+          ai_summary TEXT,
+          created_at INTEGER,
+          FOREIGN KEY (restaurant_id) REFERENCES restaurants (id)
+        )
+      ''');
+
+      // 分享内容表
+      await db.execute('''
+        CREATE TABLE share_contents (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          experience_id INTEGER,
+          style TEXT,
+          content TEXT,
+          created_at INTEGER,
+          FOREIGN KEY (experience_id) REFERENCES experience_records (id)
+        )
+      ''');
+
+      // 图片表
+      await db.execute('''
+        CREATE TABLE images (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          entity_type TEXT,
+          entity_id INTEGER,
+          file_path TEXT,
+          url TEXT,
+          created_at INTEGER
+        )
+      ''');
+
+      // 创建索引
+      await db.execute('CREATE INDEX idx_restaurants_name ON restaurants(name)');
+      await db.execute('CREATE INDEX idx_restaurants_cuisine ON restaurants(cuisine)');
+      await db.execute('CREATE INDEX idx_experience_restaurant_id ON experience_records(restaurant_id)');
+      await db.execute('CREATE INDEX idx_experience_visit_date ON experience_records(visit_date)');
+      
+      _logger.i('Database tables created successfully');
+    } catch (e) {
+      _logger.e('Failed to create database tables: $e');
+      rethrow;
+    }
+  }
+
+  /// 升级数据库
+  static Future<void> _upgradeDatabase(Database db, int oldVersion, int newVersion) async {
+    _logger.i('Upgrading database from version $oldVersion to $newVersion');
+    
+    if (oldVersion < 2) {
+      _logger.d('Adding new columns for images and coordinates...');
+      
+      // 添加新的列
+      await db.execute('ALTER TABLE restaurants ADD COLUMN latitude TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN longitude TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN full_address TEXT');
+      
+      _logger.i('Database upgraded to version 2');
+    }
+    
+    if (oldVersion < 3) {
+      _logger.d('Adding new extended fields for restaurant features...');
+      
+      // 添加拓展字段
+      await db.execute('ALTER TABLE restaurants ADD COLUMN features TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN environment TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN service_highlights TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN user_review_keywords TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN marketing_points TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN parking_info TEXT');
+      await db.execute('ALTER TABLE restaurants ADD COLUMN special_offers TEXT');
+      
+      _logger.i('Database upgraded to version 3');
+    }
+  }
+
+  /// 关闭数据库
+  static Future<void> closeDatabase() async {
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+      _logger.d('Database closed');
+    }
+  }
+
+  // ==================== 餐厅操作 ====================
+
+  /// 插入餐厅
+  static Future<int> insertRestaurant(Restaurant restaurant) async {
+    try {
+      final db = await database;
+      final id = await db.insert('restaurants', restaurant.toMap());
+      _logger.d('Inserted restaurant: ${restaurant.name} with id: $id');
+      return id;
+    } catch (e) {
+      _logger.e('Failed to insert restaurant: $e');
+      rethrow;
+    }
+  }
+
+  /// 更新餐厅
+  static Future<void> updateRestaurant(Restaurant restaurant) async {
+    try {
+      final db = await database;
+      await db.update(
+        'restaurants',
+        restaurant.copyWith(updatedAt: DateTime.now()).toMap(),
+        where: 'id = ?',
+        whereArgs: [restaurant.id],
+      );
+      _logger.d('Updated restaurant: ${restaurant.name}');
+    } catch (e) {
+      _logger.e('Failed to update restaurant: $e');
+      rethrow;
+    }
+  }
+
+  /// 删除餐厅
+  static Future<void> deleteRestaurant(int id) async {
+    try {
+      final db = await database;
+      
+      // 删除相关的体验记录
+      await db.delete('experience_records', where: 'restaurant_id = ?', whereArgs: [id]);
+      
+      // 删除餐厅
+      await db.delete('restaurants', where: 'id = ?', whereArgs: [id]);
+      
+      _logger.d('Deleted restaurant with id: $id');
+    } catch (e) {
+      _logger.e('Failed to delete restaurant: $e');
+      rethrow;
+    }
+  }
+
+  /// 根据ID获取餐厅
+  static Future<Restaurant?> getRestaurant(int id) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'restaurants',
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      
+      if (result.isNotEmpty) {
+        return Restaurant.fromMap(result.first);
+      }
+      return null;
+    } catch (e) {
+      _logger.e('Failed to get restaurant: $e');
+      return null;
+    }
+  }
+
+  /// 获取所有餐厅
+  static Future<List<Restaurant>> getAllRestaurants({
+    String? orderBy = 'created_at DESC',
+    int? limit,
+  }) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'restaurants',
+        orderBy: orderBy,
+        limit: limit,
+      );
+      
+      final restaurants = result.map((map) => Restaurant.fromMap(map)).toList();
+      _logger.d('Retrieved ${restaurants.length} restaurants from database');
+      return restaurants;
+    } catch (e) {
+      _logger.e('Failed to get all restaurants: $e');
+      rethrow; // 重新抛出错误让调用者处理
+    }
+  }
+
+  /// 搜索餐厅
+  static Future<List<Restaurant>> searchRestaurants(String keyword) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'restaurants',
+        where: 'name LIKE ? OR address LIKE ? OR cuisine LIKE ?',
+        whereArgs: ['%$keyword%', '%$keyword%', '%$keyword%'],
+        orderBy: 'created_at DESC',
+      );
+      
+      return result.map((map) => Restaurant.fromMap(map)).toList();
+    } catch (e) {
+      _logger.e('Failed to search restaurants: $e');
+      return [];
+    }
+  }
+
+  /// 根据菜系筛选餐厅
+  static Future<List<Restaurant>> getRestaurantsByCuisine(String cuisine) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'restaurants',
+        where: 'cuisine = ?',
+        whereArgs: [cuisine],
+        orderBy: 'created_at DESC',
+      );
+      
+      return result.map((map) => Restaurant.fromMap(map)).toList();
+    } catch (e) {
+      _logger.e('Failed to get restaurants by cuisine: $e');
+      return [];
+    }
+  }
+
+  /// 检查餐厅是否已存在（根据URL）
+  static Future<Restaurant?> getRestaurantByUrl(String url) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'restaurants',
+        where: 'source_url = ?',
+        whereArgs: [url],
+      );
+      
+      if (result.isNotEmpty) {
+        return Restaurant.fromMap(result.first);
+      }
+      return null;
+    } catch (e) {
+      _logger.e('Failed to get restaurant by URL: $e');
+      return null;
+    }
+  }
+
+  // ==================== 体验记录操作 ====================
+
+  /// 插入体验记录
+  static Future<int> insertExperienceRecord(ExperienceRecord record) async {
+    try {
+      final db = await database;
+      final id = await db.insert('experience_records', record.toMap());
+      _logger.d('Inserted experience record with id: $id');
+      return id;
+    } catch (e) {
+      _logger.e('Failed to insert experience record: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取餐厅的体验记录
+  static Future<List<ExperienceRecord>> getExperienceRecords(int restaurantId) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'experience_records',
+        where: 'restaurant_id = ?',
+        whereArgs: [restaurantId],
+        orderBy: 'visit_date DESC',
+      );
+      
+      return result.map((map) => ExperienceRecord.fromMap(map)).toList();
+    } catch (e) {
+      _logger.e('Failed to get experience records: $e');
+      return [];
+    }
+  }
+
+  // ==================== 分享内容操作 ====================
+
+  /// 插入分享内容
+  static Future<void> insertShareContent(int experienceId, String style, String content) async {
+    try {
+      final db = await database;
+      await db.insert('share_contents', {
+        'experience_id': experienceId,
+        'style': style,
+        'content': content,
+        'created_at': DateTime.now().millisecondsSinceEpoch,
+      });
+      _logger.d('Inserted share content for experience: $experienceId');
+    } catch (e) {
+      _logger.e('Failed to insert share content: $e');
+      rethrow;
+    }
+  }
+
+  /// 获取分享内容
+  static Future<Map<String, String>> getShareContents(int experienceId) async {
+    try {
+      final db = await database;
+      final result = await db.query(
+        'share_contents',
+        where: 'experience_id = ?',
+        whereArgs: [experienceId],
+      );
+      
+      final Map<String, String> contents = {};
+      for (final row in result) {
+        contents[row['style'] as String] = row['content'] as String;
+      }
+      
+      return contents;
+    } catch (e) {
+      _logger.e('Failed to get share contents: $e');
+      return {};
+    }
+  }
+
+  // ==================== 统计信息 ====================
+
+  /// 获取餐厅总数
+  static Future<int> getRestaurantCount() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('SELECT COUNT(*) as count FROM restaurants');
+      final count = Sqflite.firstIntValue(result) ?? 0;
+      _logger.d('Restaurant count: $count');
+      return count;
+    } catch (e) {
+      _logger.e('Failed to get restaurant count: $e');
+      return 0;
+    }
+  }
+
+  /// 获取体验记录总数
+  static Future<int> getExperienceRecordCount() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('SELECT COUNT(*) as count FROM experience_records');
+      return Sqflite.firstIntValue(result) ?? 0;
+    } catch (e) {
+      _logger.e('Failed to get experience record count: $e');
+      return 0;
+    }
+  }
+
+  /// 获取菜系统计
+  static Future<Map<String, int>> getCuisineStatistics() async {
+    try {
+      final db = await database;
+      final result = await db.rawQuery('''
+        SELECT cuisine, COUNT(*) as count 
+        FROM restaurants 
+        WHERE cuisine IS NOT NULL 
+        GROUP BY cuisine 
+        ORDER BY count DESC
+      ''');
+      
+      final Map<String, int> statistics = {};
+      for (final row in result) {
+        statistics[row['cuisine'] as String] = row['count'] as int;
+      }
+      
+      return statistics;
+    } catch (e) {
+      _logger.e('Failed to get cuisine statistics: $e');
+      return {};
+    }
+  }
+}
+
+/// 体验记录数据类
+class ExperienceRecord {
+  final int? id;
+  final int restaurantId;
+  final int rating;
+  final String content;
+  final DateTime visitDate;
+  final double? spendAmount;
+  final int? companionCount;
+  final List<String>? tags;
+  final String? aiSummary;
+  final DateTime? createdAt;
+
+  ExperienceRecord({
+    this.id,
+    required this.restaurantId,
+    required this.rating,
+    required this.content,
+    required this.visitDate,
+    this.spendAmount,
+    this.companionCount,
+    this.tags,
+    this.aiSummary,
+    this.createdAt,
+  });
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'restaurant_id': restaurantId,
+      'rating': rating,
+      'content': content,
+      'visit_date': visitDate.millisecondsSinceEpoch,
+      'spend_amount': spendAmount,
+      'companion_count': companionCount,
+      'tags': tags?.join(','),
+      'ai_summary': aiSummary,
+      'created_at': createdAt?.millisecondsSinceEpoch,
+    };
+  }
+
+  factory ExperienceRecord.fromMap(Map<String, dynamic> map) {
+    return ExperienceRecord(
+      id: map['id'],
+      restaurantId: map['restaurant_id'],
+      rating: map['rating'],
+      content: map['content'],
+      visitDate: DateTime.fromMillisecondsSinceEpoch(map['visit_date']),
+      spendAmount: map['spend_amount']?.toDouble(),
+      companionCount: map['companion_count'],
+      tags: map['tags']?.split(',').where((s) => s.isNotEmpty).toList(),
+      aiSummary: map['ai_summary'],
+      createdAt: map['created_at'] != null 
+          ? DateTime.fromMillisecondsSinceEpoch(map['created_at'])
+          : null,
+    );
+  }
+} 
